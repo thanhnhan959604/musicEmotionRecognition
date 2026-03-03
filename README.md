@@ -120,18 +120,93 @@ music-emotion-recognition/
 │
 ├── data/
 │   ├── raw/
+│   │   ├── audio/                  # Audio gốc tải về
+│   │   ├── lyrics/                 # Lyrics raw
+│   │   ├── tags/                   # Last.fm emotion tags
+│   │   └── metadata/               # Spotify metadata
+│   │
+│   ├── interim/
+│   │   ├── cleaned_audio/
+│   │   ├── cleaned_lyrics/
+│   │   └── filtered_tags/
+│   │
 │   ├── processed/
-│   └── emotion_centers/
+│   │   ├── audio_embeddings/       # BEATs embeddings
+│   │   ├── text_embeddings/        # BERT embeddings
+│   │   ├── emotion_centers/        # 28 emotion vectors
+│   │   └── dataset.csv             # Final merged dataset
+│   │
+│   └── splits/
+│       ├── train.csv
+│       ├── val.csv
+│       └── test.csv
+│
+├── src/
+│   ├── data/
+│   │   ├── download_youtube.py
+│   │   ├── download_spotify.py
+│   │   ├── fetch_lastfm_tags.py
+│   │   ├── fetch_lyrics.py
+│   │   └── build_dataset.py
+│   │
+│   ├── preprocessing/
+│   │   ├── audio_preprocess.py
+│   │   ├── text_preprocess.py
+│   │   └── tag_filter.py
+│   │
+│   ├── features/
+│   │   ├── extract_beats.py
+│   │   ├── extract_bert.py
+│   │   └── build_emotion_centers.py
+│   │
+│   ├── models/
+│   │   ├── audio_encoder.py
+│   │   ├── text_encoder.py
+│   │   ├── fusion_model.py
+│   │   └── regression_head.py
+│   │
+│   ├── training/
+│   │   ├── train.py
+│   │   ├── trainer.py
+│   │   └── loss.py
+│   │
+│   ├── evaluation/
+│   │   ├── nearest_centroid.py
+│   │   ├── metrics_classification.py
+│   │   ├── angular_error.py
+│   │   └── evaluate.py
+│   │
+│   └── utils/
+│       ├── config.py
+│       ├── logger.py
+│       ├── visualization.py
+│       └── seed.py
 │
 ├── notebooks/
-├── src/
-│   ├── models/
-│   ├── training/
-│   ├── evaluation/
-│   └── utils/
+│   ├── 01_data_collection.ipynb
+│   ├── 02_preprocessing.ipynb
+│   ├── 03_feature_extraction.ipynb
+│   ├── 04_training.ipynb
+│   └── 05_analysis.ipynb
 │
 ├── outputs/
+│   ├── checkpoints/
+│   ├── logs/
+│   ├── predictions/
+│   ├── confusion_matrices/
+│   └── plots/
+│
 ├── configs/
+│   ├── data_config.yaml
+│   ├── model_config.yaml
+│   ├── training_config.yaml
+│   └── evaluation_config.yaml
+│
+├── scripts/
+│   ├── run_pipeline.sh
+│   ├── train.sh
+│   └── evaluate.sh
+│
 ├── requirements.txt
 ├── README.md
 └── main.py
