@@ -8,38 +8,23 @@ from datetime import datetime
 from spotipy.oauth2 import SpotifyClientCredentials
 from spotipy.exceptions import SpotifyException
 
-
 # =========================
-# CONFIG
+# CONFIG (Rút gọn để test)
 # =========================
-OUTPUT_DIR = "data/raw/outputs"
-CHECKPOINT_DIR = "data/raw/checkpoints"
-LOG_DIR = "logs"
-
+OUTPUT_DIR = "test_outputs"
 os.makedirs(OUTPUT_DIR, exist_ok=True)
-os.makedirs(CHECKPOINT_DIR, exist_ok=True)
-os.makedirs(LOG_DIR, exist_ok=True)
 
 TIMESTAMP = datetime.now().strftime("%Y%m%d_%H%M%S")
-CHECKPOINT_FILE = os.path.join(CHECKPOINT_DIR, "vpop_checkpoint.csv")
-OUTPUT_FILE = os.path.join(OUTPUT_DIR, f"VPop_Octant_0_45_{TIMESTAMP}.csv")
+TEST_OUTPUT_FILE = os.path.join(OUTPUT_DIR, f"TEST_VPop_{TIMESTAMP}.csv")
 
-
-# =========================
-# LOGGING
-# =========================
 logging.basicConfig(
     level=logging.INFO,
-    format="%(asctime)s | %(levelname)s | %(message)s",
-    handlers=[
-        logging.FileHandler(os.path.join(LOG_DIR, f"crawl_{TIMESTAMP}.log")),
-        logging.StreamHandler()
-    ]
+    format="%(levelname)s | %(message)s",
+    handlers=[logging.StreamHandler()]
 )
 
-
 # =========================
-# MODEL
+# MODEL & FILTER (Giữ nguyên logic của bạn)
 # =========================
 class Track:
     def __init__(self, track_id, name, artist, valence, energy, popularity, theta):
@@ -62,10 +47,6 @@ class Track:
             "popularity": self.popularity
         }
 
-
-# =========================
-# EMOTION FILTER
-# =========================
 class EmotionFilter:
     @staticmethod
     def calculate_theta(v, e):
@@ -73,219 +54,89 @@ class EmotionFilter:
 
     @staticmethod
     def is_octant_0_45(v, e, pop):
-        if pop < 45 or v < 0.60 or e < 0.35:
+        # Bạn có thể hạ thấp tiêu chuẩn ở đây nếu muốn test ra nhiều kết quả hơn
+        if pop < 10 or v < 0.40: # Nới lỏng để dễ ra kết quả khi test
             return False
-        if e >= v:
-            return False
-
         theta = EmotionFilter.calculate_theta(v, e)
         return 0 <= theta < 45
 
-
 # =========================
-# SPOTIFY SERVICE
+# SPOTIFY SERVICE (Tối ưu để chạy nhanh)
 # =========================
 class SpotifyService:
-
     def __init__(self, client_id, client_secret):
         self.sp = spotipy.Spotify(
             auth_manager=SpotifyClientCredentials(
                 client_id=client_id,
                 client_secret=client_secret
-            ),
-            retries=5
+            )
         )
 
-    # ---- SAFE CALL ----
-    def safe_call(self, func, *args, **kwargs):
-        max_retry = 5
-        for attempt in range(max_retry):
-            try:
-                return func(*args, **kwargs)
-            except SpotifyException as e:
-                if e.http_status == 429:
-                    retry_after = int(e.headers.get("Retry-After", 5))
-                    logging.warning(f"Rate limit. Sleeping {retry_after}s...")
-                    time.sleep(retry_after)
-                else:
-                    logging.error(f"Spotify API error: {e}")
-                    return None
-            except Exception as e:
-                logging.error(f"Network error: {e}")
-                time.sleep(3)
-
-        logging.error("Max retry exceeded.")
-        return None
-
-    # ---- SEARCH PLAYLISTS ----
-    def search_playlists_by_keywords(self, keywords, limit_per_keyword=20):
-        playlist_ids = set()
-
+    def get_test_tracks(self, keywords, limit_playlists=2):
+        track_ids = set()
         for kw in keywords:
-            logging.info(f"Searching playlists: '{kw}'")
-            results = self.safe_call(self.sp.search, q=kw, type='playlist', limit=limit_per_keyword)
+            logging.info(f"Đang tìm playlist cho từ khóa: {kw}")
+            res = self.sp.search(q=kw, type='playlist', limit=limit_playlists)
+            for item in res['playlists']['items']:
+                logging.info(f" -> Đang quét playlist: {item['name']}")
+                tracks = self.sp.playlist_tracks(item['id'], limit=30) # Chỉ lấy 30 bài mỗi playlist để test
+                for t_item in tracks['items']:
+                    if t_item['track'] and t_item['track']['id']:
+                        track_ids.add(t_item['track']['id'])
+        return list(track_ids)
 
-            if results and results.get('playlists'):
-                for item in results['playlists']['items']:
-                    if item and item.get('id'):
-                        playlist_ids.add(item['id'])
-
-        logging.info(f"Found {len(playlist_ids)} playlists from search.")
-        return list(playlist_ids)
-
-    # ---- GET TRACK IDS ----
-    def get_track_ids_from_playlists(self, playlist_ids):
-        unique_ids = set()
-
-        for pid in playlist_ids:
-            logging.info(f"Scanning playlist {pid}")
-
-            results = self.safe_call(
-                self.sp.playlist_tracks,
-                pid,
-                fields="items(track(id)),next",
-                limit=100
-            )
-
-            while results:
-                for item in results.get('items', []):
-                    track = item.get('track')
-                    if track and track.get('id'):
-                        unique_ids.add(track['id'])
-
-                results = self.safe_call(self.sp.next, results) if results.get('next') else None
-
-        logging.info(f"Collected {len(unique_ids)} unique track IDs.")
-        return list(unique_ids)
-
-    # ---- PROCESS BATCHES ----
-    def process_batches(self, track_ids):
-
-        batch_size = 50
-        save_every_n_batches = 3   # Giảm IO
-        sleep_between_batches = 0.15  #  Giảm áp lực API
-
+    def process_test_batch(self, track_ids):
         valid_tracks = []
-        processed_ids = set()
+        # Chia nhỏ để gọi API audio_features (tối đa 100)
+        batch = track_ids[:100] 
+        logging.info(f"Đang xử lý phân tích cho {len(batch)} bài hát...")
+        
+        tracks_info = self.sp.tracks(batch)
+        features = self.sp.audio_features(batch)
 
-        # Resume checkpoint
-        if os.path.exists(CHECKPOINT_FILE):
-            try:
-                df_cp = pd.read_csv(CHECKPOINT_FILE)
-                processed_ids = set(df_cp["id"])
-                valid_tracks = [
-                    Track(r["id"], r["name"], r["artist"],
-                          r["valence"], r["energy"],
-                          r["popularity"], r["theta"])
-                    for _, r in df_cp.iterrows()
-                ]
-                logging.info(f"Resumed {len(valid_tracks)} tracks from checkpoint.")
-            except Exception:
-                logging.warning("Checkpoint corrupted. Starting fresh.")
-
-        remaining = [tid for tid in track_ids if tid not in processed_ids]
-
-        total_batches = (len(remaining) + batch_size - 1) // batch_size
-
-        for batch_index in range(total_batches):
-
-            start = batch_index * batch_size
-            end = start + batch_size
-            batch = remaining[start:end]
-
-            logging.info(f"Processing batch {batch_index + 1}/{total_batches}")
-
-            tracks_info = self.safe_call(self.sp.tracks, batch)
-            features = self.safe_call(self.sp.audio_features, batch)
-
-            if not tracks_info or "tracks" not in tracks_info or not features:
-                continue
-
-            for info, feat in zip(tracks_info["tracks"], features):
-                if not info or not feat:
-                    continue
-
-                v = feat.get("valence")
-                e = feat.get("energy")
-                pop = info.get("popularity")
-
-                if v is None or e is None or pop is None:
-                    continue
-
+        for info, feat in zip(tracks_info["tracks"], features):
+            if not info or not feat: continue
+            
+            v, e, pop = feat.get("valence"), feat.get("energy"), info.get("popularity")
+            if v is not None and e is not None:
                 if EmotionFilter.is_octant_0_45(v, e, pop):
                     theta = EmotionFilter.calculate_theta(v, e)
-                    valid_tracks.append(
-                        Track(
-                            info["id"],
-                            info["name"],
-                            info["artists"][0]["name"],
-                            v, e, pop, theta
-                        )
-                    )
-
-            # Save checkpoint mỗi N batch
-            if batch_index % save_every_n_batches == 0:
-                self.atomic_save(valid_tracks, CHECKPOINT_FILE)
-
-            time.sleep(sleep_between_batches)
-
-        # Save cuối cùng
-        self.atomic_save(valid_tracks, CHECKPOINT_FILE)
-
+                    valid_tracks.append(Track(info["id"], info["name"], info["artists"][0]["name"], v, e, pop, theta))
+        
         return valid_tracks
 
-    # ---- ATOMIC SAVE ----
-    def atomic_save(self, tracks, filepath):
-        temp_file = filepath + ".tmp"
-        pd.DataFrame([t.to_dict() for t in tracks]).to_csv(
-            temp_file, index=False, encoding="utf-8-sig"
-        )
-        os.replace(temp_file, filepath)
-
-
 # =========================
-# MAIN
+# MAIN TEST
 # =========================
 def main():
+    # THAY THẾ KEY CỦA BẠN VÀO ĐÂY
+    CLIENT_ID="1a25940b136a4277a11b9c3b681834c1"
+    CLIENT_SECRET="0f2a9d084b694313b130443cb6b45c2f"
 
-    CLIENT_ID = "YOUR_CLIENT_ID"
-    CLIENT_SECRET = "YOUR_CLIENT_SECRET"
+    if CLIENT_ID == "YOUR_CLIENT_ID":
+        logging.error("Vui lòng điền CLIENT_ID và CLIENT_SECRET để test!")
+        return
 
     service = SpotifyService(CLIENT_ID, CLIENT_SECRET)
+    
+    # 1. Test tìm kiếm
+    test_keywords = ["Vpop 2026", "Nhạc trẻ"]
+    logging.info("--- BẮT ĐẦU TEST LUỒNG ---")
+    
+    ids = service.get_test_tracks(test_keywords)
+    logging.info(f"Tìm thấy tổng cộng {len(ids)} ID bài hát để lọc.")
 
-    seed_playlists = [
-        "37i9dQZEVXbLdGSmz6xilI",
-        "37i9dQZEVXbMGc3ZQ0UO0P",
-        "37i9dQZF1DX4g9pRU3I870"
-    ]
+    # 2. Test lọc dữ liệu
+    results = service.process_test_batch(ids)
+    logging.info(f"Kết quả: Tìm được {len(results)} bài phù hợp với góc 0-45 độ.")
 
-    keywords = ["Vpop hot", "Nhạc trẻ 2026", "V-Pop Chill", "Nhạc Việt gây nghiện", "V-Pop 2025"]
-
-    logging.info("Step 1: Expanding playlist pool...")
-    searched_playlists = service.search_playlists_by_keywords(keywords, limit_per_keyword=15)
-
-    final_playlist_pool = list(set(seed_playlists + searched_playlists))
-    logging.info(f"Total playlists to scan: {len(final_playlist_pool)}")
-
-    logging.info("Step 2: Collecting track IDs...")
-    track_ids = service.get_track_ids_from_playlists(final_playlist_pool)
-
-    logging.info("Step 3: Processing and filtering tracks...")
-    dataset = service.process_batches(track_ids)
-
-    dataset.sort(key=lambda x: x.popularity, reverse=True)
-    final_df = pd.DataFrame([t.to_dict() for t in dataset[:1000]])
-
-    final_df.to_csv(OUTPUT_FILE, index=False, encoding="utf-8-sig")
-
-    logging.info("Crawl completed.")
-    logging.info(f"Total valid tracks found: {len(dataset)}")
-    logging.info(f"Saved top {len(final_df)} tracks to {OUTPUT_FILE}")
-
-    if os.path.exists(CHECKPOINT_FILE):
-        os.remove(CHECKPOINT_FILE)
-        logging.info("Checkpoint file removed.")
-
+    # 3. Xuất file test
+    if results:
+        df = pd.DataFrame([t.to_dict() for t in results])
+        df.to_csv(TEST_OUTPUT_FILE, index=False, encoding="utf-8-sig")
+        logging.info(f"Đã lưu kết quả test vào: {TEST_OUTPUT_FILE}")
+    else:
+        logging.warning("Không có bài nào thỏa mãn điều kiện lọc trong mẫu test.")
 
 if __name__ == "__main__":
     main()

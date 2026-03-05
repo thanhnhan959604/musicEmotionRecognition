@@ -1,2 +1,4 @@
-venv310/
+venv/
 .env
+raw/
+filtered/
