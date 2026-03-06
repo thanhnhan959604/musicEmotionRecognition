@@ -16,8 +16,8 @@ if not OPENROUTER_API_KEY:
     print("[!] LỖI: Thiếu biến OPENROUTER_API_KEY trong file .env!")
     sys.exit(1)
 
-INPUT_CSV = "data/processed/need_genius_lyrics.csv"
-OUTPUT_CSV = "data/processed/clean_titles_only.csv" # File mới tinh chỉ chứa nhãn đã xử lý
+INPUT_CSV = r"D:\Python\Do An HKII\musicEmotionRecognition\data\processed\splits\audio_metadata_part_6.csv"
+OUTPUT_CSV = "data/processed/splits_clean/clean_titles_only_6.csv"
 
 # =============================
 # HÀM GỌI OPENROUTER AI ĐỂ DỌN RÁC TIÊU ĐỀ
