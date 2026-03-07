@@ -16,8 +16,8 @@ if not OPENROUTER_API_KEY:
     print("[!] LỖI: Thiếu biến OPENROUTER_API_KEY trong file .env!")
     sys.exit(1)
 
-INPUT_CSV = r"D:\KY_6\DA2\musicEmotionRecognition\data\processed\splits\audio_metadata_part_7.csv"
-OUTPUT_CSV = "data/processed/splits_clean/clean_titles_only_7.csv" # File mới tinh chỉ chứa nhãn đã xử lý
+INPUT_CSV = r"D:\KY_6\DA2\musicEmotionRecognition\data\processed\splits\audio_metadata_part_9.csv"
+OUTPUT_CSV = "data/processed/splits_clean/clean_titles_only_9.csv" # File mới tinh chỉ chứa nhãn đã xử lý
 
 
 # =============================
