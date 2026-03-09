@@ -11,8 +11,10 @@ from deep_translator import GoogleTranslator
 # ======================================================
 # CẤU HÌNH ĐƯỜNG DẪN (Khớp với thư mục của Phúc)
 # ======================================================
-INPUT_CSV = "data/processed/splits_clean/clean_titles_only_10.csv" 
-OUTPUT_CSV = "data/processed/splits_clean/final_dataset_with_lyrics_10.csv"
+
+INPUT_CSV = "data/processed/splits_clean/clean_titles_only_9.csv" 
+OUTPUT_CSV = "data/processed/splits_clean/final_dataset_with_lyrics_9.csv"
+
 
 HEADERS = {
     'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36'
